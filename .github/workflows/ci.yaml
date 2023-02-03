@@ -1,0 +1,78 @@
+---
+name: Testing Falco Systemd integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Falco Version
+        default: master
+        required: true
+  push:
+    branches:
+      - main
+      - v[0-9]+-stable
+    paths:
+      - '**'
+      - '!README*'
+      - '!LICENSE*'
+      - '!LICENSES/**'
+      - '!TODO'
+      - '!docs/**'
+      - '!man/**'
+      - '!catalog/**'
+      - '!shell-completion/**'
+      - '!po/**'
+      - '!.**'
+      - '.github/**'
+
+  pull_request:
+    branches:
+      - main
+      - v[0-9]+-stable
+    paths:
+      - '**'
+      - '!README*'
+      - '!LICENSE*'
+      - '!LICENSES/**'
+      - '!TODO'
+      - '!docs/**'
+      - '!man/**'
+      - '!catalog/**'
+      - '!shell-completion/**'
+      - '!po/**'
+      - '!.**'
+      - '.github/**'
+
+permissions:
+  contents: read
+
+env:
+  # Enable debug logging in systemd, but keep udev's log level to info,
+  # since it's _very_ verbose in the QEMU task
+  # Disable the ISC DHCP servers, as they are failing in Ubuntu
+  KERNEL_CMDLINE: "!quiet systemd.log_level=debug systemd.log_target=console udev.log_level=info systemd.default_standard_output=journal+console systemd.mask=isc-dhcp-server6.service systemd.mask=isc-dhcp-server.service"
+
+jobs:
+  ci:
+    runs-on: ubuntu-22.04
+      #defaults:
+      #  run:
+      #    working-directory: ./app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Update base image
+        run: sudo apt update -y
+
+      - name: Install build dependencies
+        run: sudo DEBIAN_FRONTEND=noninteractive apt install libjq-dev libyaml-cpp-dev libelf-dev cmake build-essential git curl jq linux-headers-$(uname -r) dkms -y 
+
+      - name: Download and install latest deb
+        run: |
+          ./download.sh
+          sudo FALCO_FRONTEND=noninteractive dpkg -i falco.deb
